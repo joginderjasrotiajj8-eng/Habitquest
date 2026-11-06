@@ -36,7 +36,10 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
+- name: Verify Capacitor configuration
+  run: |
+    cat capacitor.config.json
+    ls -la www
       - name: Add Android platform
         run: npx cap add android
 
