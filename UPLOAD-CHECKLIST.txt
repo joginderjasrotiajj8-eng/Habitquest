@@ -1,0 +1,11 @@
+UPLOAD THESE ITEMS TO THE REPOSITORY ROOT:
+[folder] .github
+[folder] www
+[file]   package.json
+[file]   capacitor.config.json
+[file]   README.md
+
+Inside .github, keep workflows/android-apk.yml.
+Inside www, keep index.html.
+
+Do not upload the ZIP file itself. Extract it first, then upload these contents.
