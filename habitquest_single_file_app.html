@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HabitQuest - RPG Habit Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Tone.js for Retro Audio Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts: Pixelify Sans & Press Start 2P -->
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        pixel: ['"Press Start 2P"', 'monospace'],
+                        pixelify: ['"Pixelify Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        retro: {
+                            bg: '#0f0e17',
+                            card: '#1f1d2b',
+                            accent: '#ff8906',
+                            purple: '#7f5af0',
+                            green: '#2cb67d',
+                            red: '#e53170',
+                            text: '#fffffe',
+                            subtext: '#94a1b2',
+                            border: '#383552'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f0e17;
+            color: #fffffe;
+            font-family: 'Pixelify Sans', sans-serif;
+            image-rendering: pixelated;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .pixel-border {
+            border: 4px solid #383552;
+            box-shadow: 0 4px 0 0 #000;
+        }
+        .pixel-btn {
+            box-shadow: inset -4px -4px 0px 0px rgba(0, 0, 0, 0.4), inset 4px 4px 0px 0px rgba(255, 255, 255, 0.2);
+            transition: transform 0.05s ease, filter 0.1s;
+        }
+        .pixel-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: inset 2px 2px 0px 0px rgba(0, 0, 0, 0.4);
+        }
+        .hp-bar-fill {
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        #fx-canvas {
+            pointer-events: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 999;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: float 2.5s ease-in-out infinite;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f0e17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #383552;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-purple-600 selection:text-white">
+
+    <canvas id="fx-canvas"></canvas>
+
+    <!-- Top Navigation Header -->
+    <header class="bg-retro-card border-b-4 border-retro-border sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-retro-purple p-2 rounded-md border-2 border-purple-300 animate-pulse">
+                    <i data-lucide="sword" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-pixel text-sm sm:text-base tracking-wider text-retro-accent flex items-center gap-2">
+                        HABITQUEST <span class="text-xs bg-retro-purple/30 text-retro-purple px-2 py-0.5 rounded border border-retro-purple">GEN Z RPG</span>
+                    </h1>
+                    <p class="text-xs text-retro-subtext hidden sm:block">Level up your real life. Defeat the Sloth Demon.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <!-- Gold Display -->
+                <div class="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-lg border border-yellow-600/50">
+                    <i data-lucide="coins" class="w-4 h-4 text-yellow-400"></i>
+                    <span id="player-gold" class="font-pixel text-xs text-yellow-400">120</span>
+                </div>
+
+                <!-- Gems Display -->
+                <div class="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-lg border border-cyan-500/50">
+                    <i data-lucide="gem" class="w-4 h-4 text-cyan-400"></i>
+                    <span id="player-gems" class="font-pixel text-xs text-cyan-300">15</span>
+                </div>
+
+                <!-- Audio Toggle -->
+                <button id="sound-toggle" class="p-2 bg-retro-border rounded-lg hover:bg-gray-700 text-retro-text transition">
+                    <i data-lucide="volume-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto w-full p-4 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 my-2">
+
+        <!-- LEFT COLUMN: Avatar, Stats & Boss -->
+        <section class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Hero Card -->
+            <div class="bg-retro-card p-5 rounded-xl border-4 border-retro-border flex flex-col items-center relative overflow-hidden">
+                <div class="relative w-32 h-32 mb-3 bg-black/40 rounded-xl border-2 border-retro-purple flex items-center justify-center overflow-hidden group">
+                    <div id="avatar-sprite" class="text-6xl animate-float transition-all duration-300">🧙‍♂️</div>
+                    <div id="pet-sprite" class="absolute bottom-1 right-1 text-2xl">🐈</div>
+                    
+                    <span id="player-level" class="absolute top-2 left-2 bg-retro-purple text-white text-[10px] font-pixel px-2 py-0.5 rounded border border-white/40">
+                        LVL 3
+                    </span>
+                </div>
+
+                <h2 id="player-name" class="font-pixel text-sm text-retro-text text-center">Pixel Explorer</h2>
+                <p id="player-title" class="text-xs text-retro-accent mb-4">Novice Hydrator</p>
+
+                <!-- Health & XP Bars -->
+                <div class="w-full space-y-3 font-pixel text-[10px]">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-retro-red flex items-center gap-1"><i data-lucide="heart" class="w-3 h-3 fill-retro-red"></i> HP</span>
+                            <span id="hp-text">80/100</span>
+                        </div>
+                        <div class="w-full bg-black/60 h-3 rounded-full overflow-hidden border border-retro-border">
+                            <div id="hp-bar" class="hp-bar-fill bg-retro-red h-full" style="width: 80%;"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <span class="text-retro-accent flex items-center gap-1"><i data-lucide="zap" class="w-3 h-3 fill-retro-accent"></i> XP</span>
+                            <span id="xp-text">140/200</span>
+                        </div>
+                        <div class="w-full bg-black/60 h-3 rounded-full overflow-hidden border border-retro-border">
+                            <div id="xp-bar" class="hp-bar-fill bg-retro-accent h-full" style="width: 70%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Streak Stats -->
+                <div class="grid grid-cols-2 w-full gap-2 mt-4 text-center">
+                    <div class="bg-black/30 p-2 rounded-lg border border-retro-border">
+                        <span class="text-xs text-retro-subtext block">Daily Streak</span>
+                        <span id="streak-count" class="font-pixel text-retro-green text-sm flex items-center justify-center gap-1">
+                            🔥 5 Days
+                        </span>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded-lg border border-retro-border">
+                        <span class="text-xs text-retro-subtext block">Boss Dmg</span>
+                        <span id="total-dmg-dealt" class="font-pixel text-retro-accent text-sm">
+                            ⚔️ 450
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Boss Encounter -->
+            <div class="bg-gradient-to-b from-retro-card to-red-950/30 p-5 rounded-xl border-4 border-retro-red/60 relative">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-pixel text-retro-red tracking-wide uppercase flex items-center gap-1">
+                        <i data-lucide="skull" class="w-4 h-4"></i> World Boss
+                    </span>
+                    <span id="boss-timer" class="text-xs text-retro-subtext">Resets in 14h</span>
+                </div>
+
+                <div class="flex items-center gap-4 my-2">
+                    <div id="boss-avatar" class="text-5xl animate-bounce">👾</div>
+                    <div class="flex-grow">
+                        <h3 id="boss-name" class="font-pixel text-xs text-white">Doom Scroll Slime</h3>
+                        <p class="text-xs text-retro-subtext mb-2">Feeds on screen time and procrastination.</p>
+                        
+                        <div class="w-full bg-black/60 h-4 rounded-full overflow-hidden border border-retro-red/40 relative">
+                            <div id="boss-hp-bar" class="hp-bar-fill bg-gradient-to-r from-red-600 to-retro-red h-full" style="width: 65%;"></div>
+                            <span id="boss-hp-text" class="absolute inset-0 flex items-center justify-center font-pixel text-[9px] text-white shadow-sm">
+                                650 / 1000 HP
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-[11px] text-retro-subtext italic bg-black/40 p-2 rounded border border-retro-border text-center mt-2">
+                    "Every completed habit triggers a Critical Strike on the boss!"
+                </p>
+            </div>
+
+            <!-- Guild / Party Banner -->
+            <div class="bg-retro-card p-4 rounded-xl border-4 border-retro-border">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-pixel text-xs text-retro-purple flex items-center gap-2">
+                        <i data-lucide="users" class="w-4 h-4"></i> Guild Party
+                    </h3>
+                    <span class="text-xs text-retro-green">3/4 Active</span>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-xs bg-black/30 p-2 rounded">
+                        <span class="flex items-center gap-2"><span>🧝‍♀️</span> Chloe (Lvl 4)</span>
+                        <span class="text-retro-green">4 Habits Done</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs bg-black/30 p-2 rounded">
+                        <span class="flex items-center gap-2"><span>🥷</span> Marcus (Lvl 2)</span>
+                        <span class="text-retro-accent">2 Habits Done</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs bg-black/30 p-2 rounded">
+                        <span class="flex items-center gap-2"><span>🧟</span> SlothBot</span>
+                        <span class="text-retro-red">AFK</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: Habit Quests & Shop Tabs -->
+        <section class="lg:col-span-8 flex flex-col gap-4">
+
+            <!-- Tab Buttons -->
+            <div class="flex border-b-4 border-retro-border gap-2">
+                <button id="tab-quests-btn" onclick="switchTab('quests')" class="px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-purple text-white border-t-2 border-x-2 border-retro-purple">
+                    📜 Daily Quests
+                </button>
+                <button id="tab-shop-btn" onclick="switchTab('shop')" class="px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-card text-retro-subtext hover:text-white border-t-2 border-x-2 border-transparent">
+                    🛒 Armory & Shop
+                </button>
+                <button id="tab-battlepass-btn" onclick="switchTab('battlepass')" class="px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-card text-retro-subtext hover:text-white border-t-2 border-x-2 border-transparent flex items-center gap-1">
+                    👑 Battle Pass
+                </button>
+            </div>
+
+            <!-- TAB 1: QUESTS BOARD -->
+            <div id="tab-quests" class="flex flex-col gap-4">
+                <form id="add-quest-form" class="flex gap-2 bg-retro-card p-3 rounded-xl border-4 border-retro-border">
+                    <input type="text" id="quest-title-input" placeholder="Forge new micro-habit (e.g., Read 2 pages)..." required class="flex-grow bg-black/50 border border-retro-border rounded-lg px-3 py-2 text-sm text-retro-text focus:outline-none focus:border-retro-purple">
+                    
+                    <select id="quest-cat-input" class="bg-black/50 border border-retro-border rounded-lg px-2 text-xs text-retro-subtext focus:outline-none">
+                        <option value="health">💧 Health</option>
+                        <option value="mind">🧠 Mind</option>
+                        <option value="fitness">🏃 Fitness</option>
+                        <option value="life">⚡ Life</option>
+                    </select>
+
+                    <button type="submit" class="pixel-btn bg-retro-accent hover:bg-amber-600 text-white font-pixel text-xs px-4 py-2 rounded-lg flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add
+                    </button>
+                </form>
+
+                <div id="quests-container" class="space-y-3"></div>
+            </div>
+
+            <!-- TAB 2: SHOP / ARMORY -->
+            <div id="tab-shop" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+
+            <!-- TAB 3: BATTLE PASS -->
+            <div id="tab-battlepass" class="hidden bg-retro-card p-5 rounded-xl border-4 border-retro-border">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="font-pixel text-sm text-yellow-400">SEASON 1: RISE OF THE HABIT SLAYER</h3>
+                        <p class="text-xs text-retro-subtext">Unlock cosmetics and XP boosts by completing habits daily.</p>
+                    </div>
+                    <button onclick="buyBattlePass()" id="pass-buy-btn" class="pixel-btn bg-yellow-500 hover:bg-yellow-600 text-black font-pixel text-xs px-3 py-2 rounded-lg">
+                        UNLOCK PREMIUM (50 💎)
+                    </button>
+                </div>
+
+                <div id="battlepass-track" class="space-y-3 overflow-y-auto max-h-[400px] pr-2"></div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-retro-card border-t-4 border-retro-border py-4 px-6 text-center text-xs text-retro-subtext">
+        <p>HabitQuest RPG • Turn mundane daily routines into dopamine-fueled boss battles.</p>
+    </footer>
+
+    <!-- Native Capacitor Mobile & Game Logic -->
+    <script>
+        // --- Native Haptics & Mobile Integration ---
+        async function triggerNativeHaptic(type = 'light') {
+            if (window.Capacitor?.isNativePlatform()) {
+                try {
+                    const Haptics = window.Capacitor.Plugins.Haptics;
+                    if (Haptics) {
+                        if (type === 'complete' || type === 'levelup') {
+                            await Haptics.notification({ type: 'SUCCESS' });
+                        } else if (type === 'hit') {
+                            await Haptics.impact({ style: 'MEDIUM' });
+                        } else if (type === 'buy') {
+                            await Haptics.impact({ style: 'LIGHT' });
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Haptics unavailable", e);
+                }
+            } else if (navigator.vibrate) {
+                // Mobile web vibration fallback
+                if (type === 'complete') navigator.vibrate([100, 50, 100]);
+                else if (type === 'hit') navigator.vibrate(80);
+            }
+        }
+
+        // --- Game State Management ---
+        let state = {
+            player: {
+                name: "Pixel Explorer",
+                title: "Novice Hydrator",
+                level: 3,
+                hp: 80,
+                maxHp: 100,
+                xp: 140,
+                maxXp: 200,
+                gold: 120,
+                gems: 15,
+                streak: 5,
+                totalDamage: 450,
+                avatar: "🧙‍♂️",
+                pet: "🐈",
+                hasBattlePass: false
+            },
+            boss: {
+                name: "Doom Scroll Slime",
+                avatar: "👾",
+                hp: 650,
+                maxHp: 1000
+            },
+            quests: [
+                { id: 1, title: "Drink 1 Large Water Bottle", category: "health", icon: "droplet", xp: 30, gold: 15, completed: false },
+                { id: 2, title: "10 Min Morning Stretch", category: "fitness", icon: "activity", xp: 40, gold: 20, completed: false },
+                { id: 3, title: "Read 5 Pages of a Book", category: "mind", icon: "book-open", xp: 35, gold: 15, completed: false },
+                { id: 4, title: "No Phone 30 Mins Before Sleep", category: "life", icon: "moon", xp: 50, gold: 30, completed: false }
+            ],
+            shopItems: [
+                { id: 'skin_cyber', name: "Cyber Ninja Outfit", type: "avatar", icon: "🥷", cost: 100, currency: "gold", owned: false },
+                { id: 'skin_knight', name: "Holy Paladin", type: "avatar", icon: "🛡️", cost: 200, currency: "gold", owned: false },
+                { id: 'pet_dragon', name: "Baby Pixel Dragon", type: "pet", icon: "🐉", cost: 15, currency: "gems", owned: false },
+                { id: 'pet_owl', name: "Wisdom Owl", type: "pet", icon: "🦉", cost: 80, currency: "gold", owned: false },
+                { id: 'potion_hp', name: "Health Potion (+50 HP)", type: "consumable", icon: "🧪", cost: 30, currency: "gold", owned: false }
+            ],
+            battlePass: [
+                { tier: 1, reward: "10 Gold", claimed: true, premium: false },
+                { tier: 2, reward: "⚡ 1.5x XP Booster (1 day)", claimed: false, premium: false },
+                { tier: 3, reward: "👑 Golden Crown Avatar", claimed: false, premium: true },
+                { tier: 4, reward: "50 Gems", claimed: false, premium: true }
+            ]
+        };
+
+        // --- Tone.js Synthesized Audio ---
+        let soundEnabled = true;
+        let synth, polySynth;
+
+        function initAudio() {
+            if (!synth && typeof Tone !== 'undefined') {
+                synth = new Tone.Synth().toDestination();
+                polySynth = new Tone.PolySynth().toDestination();
+            }
+        }
+
+        function playFx(type) {
+            triggerNativeHaptic(type);
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                if (type === 'complete') {
+                    polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n");
+                } else if (type === 'hit') {
+                    synth.triggerAttackRelease("G2", "16n");
+                } else if (type === 'levelup') {
+                    polySynth.triggerAttackRelease(["C4", "E4", "G4", "B4", "C5", "E5"], "4n");
+                } else if (type === 'buy') {
+                    synth.triggerAttackRelease("E5", "8n");
+                }
+            } catch (e) {
+                console.log("Audio block/error", e);
+            }
+        }
+
+        // --- Render Functions ---
+        function renderUI() {
+            document.getElementById('player-name').innerText = state.player.name;
+            document.getElementById('player-title').innerText = state.player.title;
+            document.getElementById('player-level').innerText = `LVL ${state.player.level}`;
+            document.getElementById('player-gold').innerText = state.player.gold;
+            document.getElementById('player-gems').innerText = state.player.gems;
+            document.getElementById('streak-count').innerText = `🔥 ${state.player.streak} Days`;
+            document.getElementById('total-dmg-dealt').innerText = `⚔️ ${state.player.totalDamage}`;
+            document.getElementById('avatar-sprite').innerText = state.player.avatar;
+            document.getElementById('pet-sprite').innerText = state.player.pet;
+
+            document.getElementById('hp-text').innerText = `${state.player.hp}/${state.player.maxHp}`;
+            document.getElementById('hp-bar').style.width = `${(state.player.hp / state.player.maxHp) * 100}%`;
+
+            document.getElementById('xp-text').innerText = `${state.player.xp}/${state.player.maxXp}`;
+            document.getElementById('xp-bar').style.width = `${(state.player.xp / state.player.maxXp) * 100}%`;
+
+            document.getElementById('boss-name').innerText = state.boss.name;
+            document.getElementById('boss-avatar').innerText = state.boss.avatar;
+            document.getElementById('boss-hp-text').innerText = `${state.boss.hp} / ${state.boss.maxHp} HP`;
+            document.getElementById('boss-hp-bar').style.width = `${Math.max(0, (state.boss.hp / state.boss.maxHp) * 100)}%`;
+
+            renderQuests();
+            renderShop();
+            renderBattlePass();
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function renderQuests() {
+            const container = document.getElementById('quests-container');
+            container.innerHTML = '';
+
+            state.quests.forEach(quest => {
+                const card = document.createElement('div');
+                card.className = `bg-retro-card p-4 rounded-xl border-4 transition-all flex items-center justify-between gap-4 ${
+                    quest.completed ? 'border-retro-green/40 opacity-75 bg-retro-card/40' : 'border-retro-border hover:border-retro-purple'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <button onclick="toggleQuest(${quest.id})" class="w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-all ${
+                            quest.completed ? 'bg-retro-green border-retro-green text-white' : 'border-retro-border bg-black/40 hover:border-retro-accent'
+                        }">
+                            ${quest.completed ? '<i data-lucide="check" class="w-5 h-5"></i>' : ''}
+                        </button>
+                        <div>
+                            <h4 class="text-sm font-pixel ${quest.completed ? 'line-through text-retro-subtext' : 'text-retro-text'}">${quest.title}</h4>
+                            <div class="flex items-center gap-2 text-xs text-retro-subtext mt-1">
+                                <span class="text-retro-accent">+${quest.xp} XP</span>
+                                <span>•</span>
+                                <span class="text-yellow-400">+${quest.gold} Gold</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="deleteQuest(${quest.id})" class="text-retro-subtext hover:text-retro-red p-1">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderShop() {
+            const container = document.getElementById('tab-shop');
+            container.innerHTML = '';
+
+            state.shopItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'bg-retro-card p-4 rounded-xl border-4 border-retro-border flex flex-col justify-between items-center text-center';
+                
+                card.innerHTML = `
+                    <div class="text-4xl mb-2">${item.icon}</div>
+                    <h4 class="font-pixel text-xs text-white mb-1">${item.name}</h4>
+                    <p class="text-xs text-retro-subtext capitalize mb-3">${item.type}</p>
+                    <button onclick="buyShopItem('${item.id}')" ${item.owned ? 'disabled' : ''} 
+                        class="w-full pixel-btn ${item.owned ? 'bg-gray-700 text-gray-400' : 'bg-retro-purple hover:bg-purple-600 text-white'} font-pixel text-xs py-2 rounded-lg flex justify-center items-center gap-1">
+                        ${item.owned ? 'Equipped/Owned' : `Buy for ${item.cost} ${item.currency === 'gold' ? '🪙' : '💎'}`}
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function renderBattlePass() {
+            const container = document.getElementById('battlepass-track');
+            container.innerHTML = '';
+
+            state.battlePass.forEach(tier => {
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-lg border-2 flex items-center justify-between ${
+                    tier.premium ? 'bg-yellow-950/20 border-yellow-600/50' : 'bg-black/30 border-retro-border'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="font-pixel text-xs text-retro-accent">Tier ${tier.tier}</span>
+                        <span class="text-xs text-white">${tier.reward} ${tier.premium ? '<span class="text-yellow-400 font-pixel text-[10px] ml-1">[PREMIUM]</span>' : ''}</span>
+                    </div>
+                    <button onclick="claimPassReward(${tier.tier})" ${tier.claimed ? 'disabled' : ''} class="pixel-btn px-3 py-1 rounded text-xs font-pixel ${
+                        tier.claimed ? 'bg-gray-700 text-gray-500' : 'bg-retro-green text-white hover:bg-emerald-600'
+                    }">
+                        ${tier.claimed ? 'Claimed' : 'Claim'}
+                    </button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // --- Actions & Gameplay Logic ---
+        function toggleQuest(id) {
+            const quest = state.quests.find(q => q.id === id);
+            if (!quest) return;
+
+            quest.completed = !quest.completed;
+
+            if (quest.completed) {
+                state.player.xp += quest.xp;
+                state.player.gold += quest.gold;
+                state.player.totalDamage += 50;
+                state.boss.hp = Math.max(0, state.boss.hp - 50);
+
+                playFx('complete');
+                triggerParticles(window.innerWidth / 2, window.innerHeight / 2, 25);
+                checkLevelUp();
+            } else {
+                state.player.xp = Math.max(0, state.player.xp - quest.xp);
+                state.player.gold = Math.max(0, state.player.gold - quest.gold);
+                state.boss.hp = Math.min(state.boss.maxHp, state.boss.hp + 50);
+            }
+
+            renderUI();
+        }
+
+        function checkLevelUp() {
+            if (state.player.xp >= state.player.maxXp) {
+                state.player.level += 1;
+                state.player.xp -= state.player.maxXp;
+                state.player.maxXp = Math.floor(state.player.maxXp * 1.5);
+                state.player.hp = state.player.maxHp;
+                playFx('levelup');
+            }
+        }
+
+        function addQuest(title, category) {
+            state.quests.push({
+                id: Date.now(),
+                title: title,
+                category: category,
+                icon: 'star',
+                xp: 25,
+                gold: 15,
+                completed: false
+            });
+            renderUI();
+        }
+
+        function deleteQuest(id) {
+            state.quests = state.quests.filter(q => q.id !== id);
+            renderUI();
+        }
+
+        function buyShopItem(id) {
+            const item = state.shopItems.find(i => i.id === id);
+            if (!item || item.owned) return;
+
+            if (item.currency === 'gold' && state.player.gold >= item.cost) {
+                state.player.gold -= item.cost;
+                item.owned = true;
+                equipItem(item);
+                playFx('buy');
+            } else if (item.currency === 'gems' && state.player.gems >= item.cost) {
+                state.player.gems -= item.cost;
+                item.owned = true;
+                equipItem(item);
+                playFx('buy');
+            }
+            renderUI();
+        }
+
+        function equipItem(item) {
+            if (item.type === 'avatar') state.player.avatar = item.icon;
+            else if (item.type === 'pet') state.player.pet = item.icon;
+            else if (item.id === 'potion_hp') state.player.hp = Math.min(state.player.maxHp, state.player.hp + 50);
+        }
+
+        function buyBattlePass() {
+            if (state.player.gems >= 50) {
+                state.player.gems -= 50;
+                state.player.hasBattlePass = true;
+                document.getElementById('pass-buy-btn').innerText = "PREMIUM ACTIVE ✓";
+                document.getElementById('pass-buy-btn').disabled = true;
+                playFx('buy');
+                renderUI();
+            }
+        }
+
+        function claimPassReward(tierNum) {
+            const tier = state.battlePass.find(t => t.tier === tierNum);
+            if (!tier || tier.claimed) return;
+
+            if (tier.premium && !state.player.hasBattlePass) return;
+
+            tier.claimed = true;
+            if (tierNum === 1) state.player.gold += 10;
+            if (tierNum === 4) state.player.gems += 50;
+            
+            playFx('complete');
+            renderUI();
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('tab-quests').classList.add('hidden');
+            document.getElementById('tab-shop').classList.add('hidden');
+            document.getElementById('tab-battlepass').classList.add('hidden');
+
+            document.getElementById('tab-quests-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-card text-retro-subtext hover:text-white border-t-2 border-x-2 border-transparent";
+            document.getElementById('tab-shop-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-card text-retro-subtext hover:text-white border-t-2 border-x-2 border-transparent";
+            document.getElementById('tab-battlepass-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-card text-retro-subtext hover:text-white border-t-2 border-x-2 border-transparent";
+
+            if (tabName === 'quests') {
+                document.getElementById('tab-quests').classList.remove('hidden');
+                document.getElementById('tab-quests-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-purple text-white border-t-2 border-x-2 border-retro-purple";
+            } else if (tabName === 'shop') {
+                document.getElementById('tab-shop').classList.remove('hidden');
+                document.getElementById('tab-shop-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-purple text-white border-t-2 border-x-2 border-retro-purple";
+            } else if (tabName === 'battlepass') {
+                document.getElementById('tab-battlepass').classList.remove('hidden');
+                document.getElementById('tab-battlepass-btn').className = "px-5 py-2.5 font-pixel text-xs rounded-t-lg bg-retro-purple text-white border-t-2 border-x-2 border-retro-purple";
+            }
+        }
+
+        // --- Particle VFX Canvas Engine ---
+        const canvas = document.getElementById('fx-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function triggerParticles(x, y, count = 20) {
+            const colors = ['#ff8906', '#7f5af0', '#2cb67d', '#fffffe', '#facc15'];
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8 - 2,
+                    size: Math.random() * 6 + 3,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    life: 1
+                });
+            }
+        }
+
+        function updateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.02;
+
+                if (p.life <= 0) {
+                    particles.splice(index, 1);
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+            });
+            requestAnimationFrame(updateParticles);
+        }
+        updateParticles();
+
+        // --- Event Listeners Initialization ---
+        document.getElementById('add-quest-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('quest-title-input');
+            const cat = document.getElementById('quest-cat-input').value;
+            if (input.value.trim()) {
+                addQuest(input.value.trim(), cat);
+                input.value = '';
+            }
+        });
+
+        document.getElementById('sound-toggle').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            document.getElementById('sound-toggle').innerHTML = soundEnabled 
+                ? '<i data-lucide="volume-2" class="w-5 h-5"></i>' 
+                : '<i data-lucide="volume-x" class="w-5 h-5 text-retro-red"></i>';
+            if (window.lucide) lucide.createIcons();
+        });
+
+        window.onload = () => {
+            renderUI();
+        };
+    </script>
+</body>
+</html>
