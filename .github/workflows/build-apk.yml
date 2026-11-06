@@ -34,12 +34,16 @@ jobs:
             platforms;android-35
             build-tools;35.0.0
 
+      - name: Verify project files
+        run: |
+          echo "CAPACITOR CONFIG:"
+          cat capacitor.config.json
+          echo "WEB FILES:"
+          ls -la www
+
       - name: Install dependencies
         run: npm install
-- name: Verify Capacitor configuration
-  run: |
-    cat capacitor.config.json
-    ls -la www
+
       - name: Add Android platform
         run: npx cap add android
 
@@ -58,52 +62,3 @@ jobs:
           name: HabitQuest-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           
-name: Build HabitQuest Android APK
-
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create Android project
-        run: npx cap add android
-
-      - name: Sync application
-        run: npx cap sync android
-
-      - name: Build APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: HabitQuest-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
